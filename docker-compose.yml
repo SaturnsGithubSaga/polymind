@@ -1,0 +1,37 @@
+version: "3.9"
+
+services:
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    restart: unless-stopped
+    volumes:
+      - ./litellm_config.yaml:/app/config.yaml
+    env_file: .env
+    # Port 4000 is internal only — not exposed to LAN
+    expose:
+      - "4000"
+    command: ["--config", "/app/config.yaml", "--port", "4000", "--detailed_debug"]
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  app:
+    build: ./app
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "${APP_PORT:-7860}:7860"
+    depends_on:
+      - litellm
+    volumes:
+      - ./app:/app       # live editing without rebuild during dev
+      - ./litellm_config.yaml:/litellm_config.yaml:ro  # models_config.py reads this
+    environment:
+      - LITELLM_BASE_URL=http://litellm:4000

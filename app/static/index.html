@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0d0d0d" />
+  <meta name="description" content="Send one prompt to multiple LLMs simultaneously. Real-time streaming, debate mode, and thread composer." />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="PolyMind" />
+
+  <title>PolyMind — Multi-LLM Prompt Hub</title>
+
+  <link rel="manifest" href="/static/manifest.json" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+<div id="app">
+
+  <!-- ── Offline Banner ──────────────────────────────────── -->
+  <div id="offline-banner" role="alert">
+    📡 You are offline — LLM calls require an internet connection
+  </div>
+
+  <!-- ── Header ──────────────────────────────────────────── -->
+  <header id="header">
+    <div id="logo">
+      <div class="logo-mark">PM</div>
+      <span>PolyMind</span>
+    </div>
+
+    <div id="balance-display" role="button" aria-label="OpenRouter credit balance" tabindex="0">
+      <span class="balance-label">OR Balance</span>
+      <span class="balance-val" id="balance-val">—</span>
+      <div id="balance-tooltip">Last fetched: <span id="balance-time">—</span></div>
+    </div>
+  </header>
+
+  <!-- ── Tab Bar ─────────────────────────────────────────── -->
+  <nav id="tab-bar" role="tablist">
+    <button class="tab-btn active" id="tab-prompt-btn" role="tab" aria-selected="true"
+            aria-controls="tab-prompt" onclick="switchTab('prompt')">
+      Prompt
+    </button>
+    <button class="tab-btn" id="tab-debate-btn" role="tab" aria-selected="false"
+            aria-controls="tab-debate" onclick="switchTab('debate')">
+      Debate
+    </button>
+  </nav>
+
+  <!-- ── Tab Content ─────────────────────────────────────── -->
+  <div id="tab-content">
+
+    <!-- ════════════════ PROMPT TAB ════════════════ -->
+    <section id="tab-prompt" class="tab-panel active" role="tabpanel">
+
+      <!-- Model chip selector -->
+      <div id="chip-selector-prompt" aria-label="Select models">
+        <span class="chip-label">Models</span>
+        <!-- Chips injected by JS -->
+        <button id="sidebar-toggle" onclick="toggleSidebar()" title="Toggle history"
+                aria-label="Toggle session history">
+          <!-- History icon -->
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Prompt main area (sidebar + content) -->
+      <div id="prompt-main">
+
+        <!-- Session history sidebar -->
+        <aside id="sidebar" aria-label="Session history">
+          <div id="sidebar-header">
+            <span>History</span>
+            <button id="clear-history-btn" onclick="clearHistory()">Clear</button>
+          </div>
+          <div id="history-list" role="list"></div>
+        </aside>
+
+        <!-- Main content column -->
+        <div id="prompt-content">
+
+          <!-- Past response label -->
+          <div id="past-label" role="status">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+            </svg>
+            Viewing past response — send a new prompt to continue
+          </div>
+
+          <!-- Response area -->
+          <div id="response-area">
+            <!-- Empty state -->
+            <div id="empty-state">
+              <div class="empty-icon">✦</div>
+              <p>Select models above and send a prompt to see responses side by side</p>
+            </div>
+            <!-- Response cards -->
+            <div id="response-grid" role="list"></div>
+          </div>
+
+          <!-- Cost summary -->
+          <div id="cost-summary">
+            <div id="cost-summary-header">
+              <span id="cost-summary-title">Session Cost</span>
+              <button id="reset-cost-btn" onclick="resetCost()">Reset counter</button>
+            </div>
+            <div id="cost-rows"></div>
+            <div id="cost-total-row" style="display:none">
+              <span>Session total:</span>
+              <span class="total-val" id="cost-total-val">$0.00000</span>
+              <span id="reset-label"></span>
+            </div>
+          </div>
+
+          <!-- Input area -->
+          <div id="input-area">
+            <textarea
+              id="prompt-textarea"
+              placeholder="Ask anything…"
+              rows="2"
+              aria-label="Prompt input"
+            ></textarea>
+
+            <div id="image-preview-area" aria-label="Attached image">
+              <img id="image-thumb" alt="Attached image" />
+              <div>
+                <div id="image-name" style="font-size:11px;color:var(--text-muted);margin-bottom:4px;"></div>
+                <button id="remove-image-btn" onclick="removeImage()">✕ Remove</button>
+              </div>
+            </div>
+
+            <div id="input-actions">
+              <span id="hint-text">Ctrl+Enter to send · Paste image to attach</span>
+              <button id="send-btn" onclick="sendPrompt()" aria-label="Send prompt">
+                <span class="send-label">Send</span>
+                <div class="spinner"></div>
+                <!-- Send arrow -->
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+        </div><!-- /prompt-content -->
+      </div><!-- /prompt-main -->
+
+    </section><!-- /tab-prompt -->
+
+    <!-- ════════════════ DEBATE TAB ════════════════ -->
+    <section id="tab-debate" class="tab-panel" role="tabpanel">
+
+      <div id="debate-panel">
+        <!-- Debate chip selector -->
+        <div id="chip-selector-debate" aria-label="Select models for debate">
+          <span class="chip-label">Models</span>
+          <!-- Chips injected by JS -->
+        </div>
+
+        <!-- Debate input -->
+        <div id="debate-input-area">
+          <textarea
+            id="debate-textarea"
+            placeholder="What should the models debate?"
+            rows="2"
+            aria-label="Debate prompt"
+          ></textarea>
+
+          <div id="debate-options">
+            <span id="debate-rounds-label">Rounds:</span>
+            <label class="round-option">
+              <input type="radio" name="rounds" value="2" id="rounds-2" />
+              2 rounds
+            </label>
+            <label class="round-option">
+              <input type="radio" name="rounds" value="3" id="rounds-3" checked />
+              3 rounds
+            </label>
+          </div>
+
+          <div id="debate-cost-estimate"></div>
+
+          <div id="debate-actions">
+            <button id="start-debate-btn" onclick="startDebate()" aria-label="Start debate">
+              <span class="debate-btn-label">Start Debate</span>
+              <div class="spinner"></div>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <polygon points="10 8 16 12 10 16 10 8"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Debate content (rounds appear here) -->
+        <div id="debate-content" aria-live="polite"></div>
+
+        <!-- Debate footer -->
+        <div id="debate-footer">
+          <div id="debate-total-cost">Total debate cost: <span id="debate-cost-val">$0.00</span></div>
+          <div id="debate-post-actions">
+            <button id="new-debate-btn" onclick="newDebate()">↺ New Debate</button>
+            <button id="build-thread-btn" onclick="openThreadComposer()">Build Thread →</button>
+          </div>
+        </div>
+
+      </div>
+
+    </section><!-- /tab-debate -->
+
+  </div><!-- /tab-content -->
+
+</div><!-- /app -->
+
+<!-- ── Thread Composer Overlay ──────────────────────────── -->
+<div id="thread-composer" role="dialog" aria-modal="true" aria-label="Thread Composer">
+  <div id="composer-panel">
+    <div id="composer-header">
+      <h2>🧵 Thread Composer</h2>
+      <button id="composer-close" onclick="closeThreadComposer()" aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <div id="composer-body">
+      <!-- Left: picks -->
+      <div id="composer-picks">
+        <!-- Injected by thread_composer.js -->
+      </div>
+
+      <!-- Right: preview -->
+      <div id="composer-preview-col">
+        <div id="composer-preview-header">
+          Context Preview
+          <span id="composer-token-count">0 tokens</span>
+        </div>
+        <pre id="composer-preview-text">Select items on the left to build your context…</pre>
+      </div>
+    </div>
+
+    <div id="composer-footer">
+      <textarea
+        id="composer-followup-textarea"
+        placeholder="What do you want to ask or do with this context?"
+        rows="2"
+        aria-label="Follow-up prompt"
+      ></textarea>
+
+      <div id="composer-send-row">
+        <div id="composer-model-chips" aria-label="Select models for follow-up">
+          <!-- Chips injected by thread_composer.js -->
+        </div>
+        <button id="composer-send-btn" onclick="sendFromComposer()" aria-label="Send to Prompt tab">
+          Send to Prompt tab →
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+<script src="/static/thread_composer.js"></script>
+</body>
+</html>
